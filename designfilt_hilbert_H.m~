@@ -1,0 +1,135 @@
+%% design a filter from 3 to 8 hz with padding
+%EEG.data is the variable to use. 
+
+band_fil = designfilt('bandpassfir','PassbandFrequency1',3,'PassbandFrequency2',8,'StopbandFrequency1',2,'StopbandFrequency2',9,'DesignMethod','kaiserwin','SampleRate',1000);
+
+C = EEG.data; % creating a new data set for the struct, accessing only the "data" within "EEG"
+C=double(C); % creates an EEG double
+
+%below we pad on the second dimension (samples) for each epoch, to both the beginning and end, and we save them
+%in a cell structure named E
+
+ for i=1:size(C,3)
+     E{i}= padarray(C(:,:,i),[0,5000],0,'both') % 5 seconds to each
+ end
+ 
+
+%Here we convert the cell structure into a 3-D matrix again
+E_K=cell2mat(reshape(E,1,1,[]));
+ 
+%here we can see one of the epochs, just ot have a visual perception of
+%what's inside
+epoch_1_padded=E_K(:,:,1);
+
+%save data as a new dataset
+E_K_old=E_K;
+
+%% Filter the data from 3 to 8 Hz
+% You want to go channel by channel, so its not the 3rd value of the size but the 1st*
+%  access one channel at a time, all samples x epochs using a for loop
+for i=1:size(E_K,1) % channel by channel
+    for p=1:size(E_K, 3) % epoch by epoch
+        E_K(i,:,p)=filtfilt(band_fil,E_K(i,:,p)); % apply low pass and high pass filters to samples of signal
+    end 
+end  
+
+%visualize filtered signal of 1 channel and old signal to compare them
+plot(E_K_old(1,:,1), 'k','LineWidth',1) % plot 1 channel of filtered signal
+hold on
+plot(E_K(1,:,1),'b','LineWidth',1)% on top, plot one channel of unfiltered signal that is padded 
+legend('processed EEG signal','filtered EEG signal')
+xlabel('time')
+ylabel('amplitude units (a.u)')
+title('Filtered signal')
+
+
+%check this ^ for multiple channels and epochs by adjusting positions 1 & 3
+
+%% Section 2: Hilbert transform the now filtered data-using the whole dataset
+% USE ME** use a simple hilbert
+hil=hilbert(E_K);
+
+%it should have the same size as the filtered signal
+size(hil)
+
+%when you plot this hilbert transformed signal, you should obtain a variation of a circle.
+%take one channel, test a bunch of channels/epochs.
+figure
+plot(hil(1,5000:10000,4))
+title('hilbert transformed EEG')
+%don't bother about the x and y axes of this circle. but make sure that
+%they have similar ranges to the maximum and the minimum values of your
+%filtered signal. remember, the magnitude of the complex values give you
+%your amplitudes - pretty much - due to m = sqrt(x^2+y^2);
+
+
+%We could use hilbert transform to obtain the phases of the signals
+%phase = angle, so lets make a forloop for that...
+
+%angle EEG
+angle=angle(hil);
+
+%these guys should be in the range of [-pi a pi]
+%let's check that
+min(angle)< -pi %is the smallest angle in our data smaller than -pi?
+max(angle)> pi %is the larges angle in our data larger than pi?
+
+%let's look at these angles, can select one channel to plot
+figure
+plot(angle(1,:,1))
+title('Phases of the EEG')
+xlabel('time')
+ylabel('phases/angles [-pi pi]')
+
+%now in order to compute phase locking value, we have to "treat" the phases
+%what you need to do is take them out of the range of [-pi pi]
+%so that they kind of increase as a function of time
+%this is called unwrapping
+unwrapped = unwrap(angle); %literally the function's name, right??
+%look at what this did to your angles -only if doing for 1 channel at a
+%time, won't workwith 3 dimensions
+figure
+plot(unwrapped(1,:,1))
+xlabel('time')
+ylabel('??')
+title('unwrapped phases of the EEG')
+
+
+%%save data
+output_location= '/Users/haleymedeiros/Desktop/EEG'; 
+
+save([[output_location filesep 'practice' filesep ]  , 'bebe.mat']); % change according to subject name
+ 
+%the variable called unwrapped is your hilbert transformed and unwrapped
+%signal. WE NEED TO UNWRAP THE PHASES OF THE AUDIO SIGNAL TOO**
+
+
+%% miscellaneous
+
+
+
+%OR try using the same for loop for HIlbert? simple hilbert is better
+for i=size(E_K,1) % go from position 1 to the whole size of filtered array (106 channels)
+   for p=1:size(E_K, 3) % go epoch by epoch
+       signal=E_K(i,:,p); % select channel i and epoch p to prepare for hilbert transform
+       signal2=hilbert(signal); % hilbert transform each epoch in each channel
+       E_K_hil(i,:,p)=signal2; % replace original dataset with hilbert transformed 
+   end 
+end
+
+eeg_ph % should be unwrapped EEG signal
+espanol=Phases % rename Phases to spanish
+
+
+no_padding=eeg_ph(:,5001:13820,30); % take all channels, first epoch
+length=no_padding(:,1:3006); % extract only samples that arent padded
+ %CHANGE FOR EACH SENTENCE. for epoch 1, esp 1, extract only sentence duration
+
+
+
+dif_ph=(Phases{5}-length); %Phases{1x2426 double} and test2 is 106 x3820 double
+
+ %EEG=spanish_epochs, Speech for spanish=angle
+ expon = exp(1i*dif_ph);
+ PLV= abs(mean(expon)); 
+ PLV_average_eng5=mean(PLV);
